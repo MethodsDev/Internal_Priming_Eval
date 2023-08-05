@@ -11,12 +11,15 @@ import gzip
 
 A_FRAC_WIN_SIZE = 20
 KNOWN_POLYA_SEARCH_DIST = 50
+UP_FLANK_DIST_DEFAULT = 30
+DOWN_FLANK_DIST_DEFAULT = 30
+
 
 POLYA_MOTIF_pattern='(A[AT]TAAA)'
 
 SQANTI3_POLYA_MOTIFS = [x.upper() for x in  [
-    # aataaa
-    # attaaa
+    # aataaa  # captured by regex above
+    # attaaa  # captured by regex above
     'agtaaa',
     'tataaa',
     'cataaa',
@@ -46,8 +49,8 @@ def main():
     parser.add_argument("--bam", type=str, required=True, help="bam file, coordinate-sorted")
     parser.add_argument("--genome_fa", type=str, required=True, help="ref genome fasta file")
     parser.add_argument("--min_read_counts", type=int, default=2, help="min number of reads with same 3' end")
-    parser.add_argument("--up_flank_dist", type=int, default=30, help="bases upstream of end")
-    parser.add_argument("--down_flank_dist", type=int, default=30, help="bases downstream of end")
+    parser.add_argument("--up_flank_dist", type=int, default=UP_FLANK_DIST_DEFAULT, help="bases upstream of end")
+    parser.add_argument("--down_flank_dist", type=int, default=DOWN_FLANK_DIST_DEFAULT, help="bases downstream of end")
     
     args = parser.parse_args()
 
@@ -91,6 +94,7 @@ def main():
                      "Strand",
                      "Num_reads",
                      "SeqRegion",
+                     "EndCountA",
                      "EndFracA",
                      "PolyA_motif",
                      "AtOrNearKnownPolyA"]))
@@ -149,14 +153,14 @@ def dump_chrom_end_counts(chromosome, prime3_end_counter, seq_extract_config):
                             
             seqregion, rel_end_coord = extract_flank_seq(chrom, coord, strand, seq_extract_config)
 
-            frac_A = compute_frac_A(seqregion, rel_end_coord, A_FRAC_WIN_SIZE)
+            count_A, frac_A = compute_frac_A(seqregion, rel_end_coord, A_FRAC_WIN_SIZE)
 
             polyA_signal = check_for_polyA_signal(seqregion)
             if polyA_signal:
                 polyA_signal_lc = polyA_signal.lower()
                 seqregion = seqregion.replace(polyA_signal, polyA_signal_lc)
             
-            print(f"{chrom}\t{coord}\t{strand}\t{count}\t{seqregion}\t{frac_A:.3f}\t{polyA_signal}\t{at_known_polyA_site}")
+            print(f"{chrom}\t{coord}\t{strand}\t{count}\t{seqregion}\t{count_A}\t{frac_A:.3f}\t{polyA_signal}\t{at_known_polyA_site}")
 
     return
 
@@ -234,9 +238,10 @@ def parse_genome_seq_lengths(genome_fai_file):
 
 
 def compute_frac_A(seqregion, end_coord, win_size):
-    half_win = round(win_size/2.0)
-    lend_coord = max(end_coord-half_win, 1)
-    rend_coord = min(end_coord+half_win, len(seqregion))
+    
+    lend_coord = end_coord
+    rend_coord = min(end_coord+win_size, len(seqregion))
+
     seqregion = seqregion[lend_coord-1 : rend_coord]
     A_count = 0
     for char in seqregion:
@@ -244,7 +249,7 @@ def compute_frac_A(seqregion, end_coord, win_size):
             A_count += 1
     frac_A = A_count / len(seqregion)
 
-    return frac_A
+    return A_count, frac_A
 
 
 def parse_known_polyA_sites():
