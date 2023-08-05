@@ -243,6 +243,10 @@ def compute_frac_A(seqregion, end_coord, win_size):
     rend_coord = min(end_coord+win_size, len(seqregion))
 
     seqregion = seqregion[lend_coord-1 : rend_coord]
+
+    if len(seqregion) == 0:
+        return "NA", "NA"
+    
     A_count = 0
     for char in seqregion:
         if char == "A":
